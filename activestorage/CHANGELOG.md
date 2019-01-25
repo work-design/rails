@@ -1,5 +1,8 @@
+*   Direct Upload support custom http method
+    
+    *Mingyuan Qin*
 ## Rails 6.0.0.beta1 (January 18, 2019) ##
-
+    
 *   Replace `config.active_storage.queue` with two options that indicate which
     queues analysis and purge jobs should use, respectively:
 

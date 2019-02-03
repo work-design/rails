@@ -104,8 +104,8 @@ module ActiveStorage
       raise NotImplementedError
     end
 
-    def direct_upload(key)
-      ActiveStorage::DirectUpload.new method: "PUT", url: url_for_direct_upload(key), headers: headers_for_direct_upload(key)
+    def direct_upload(blob)
+      ActiveStorage::DirectUpload.new(blob)
     end
 
     # Returns a signed, temporary URL that a direct upload file can be PUT to on the +key+.
@@ -114,6 +114,11 @@ module ActiveStorage
     # that will be uploaded. All these attributes will be validated by the service upon upload.
     def url_for_direct_upload(key, expires_in:, content_type:, content_length:, checksum:)
       raise NotImplementedError
+    end
+
+    # Returns http method for +url_for_direct_upload+ requests.
+    def method_for_direct_upload
+      'PUT'
     end
 
     # Returns a Hash of headers for +url_for_direct_upload+ requests.

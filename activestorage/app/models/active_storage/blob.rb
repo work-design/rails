@@ -145,7 +145,11 @@ class ActiveStorage::Blob < ActiveRecord::Base
   end
 
   def direct_upload
-    service.direct_upload(key)
+    service.direct_upload(self)
+  end
+
+  def service_method_for_direct_upload
+    service.method_for_direct_upload
   end
 
   # Returns a URL that can be used to directly upload a file for this blob on the service. This URL is intended to be

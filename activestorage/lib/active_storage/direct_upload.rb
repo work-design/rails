@@ -2,9 +2,12 @@ module ActiveStorage
   class DirectUpload
     attr_reader :method, :url, :headers
 
-    def initialize(method:, url:, headers:)
-      @method = method.upcase
-      @url, @headers = url, headers
+    def initialize(blob)
+      @blob = blob
+
+      @method = @blob.service_method_for_direct_upload
+      @url = @blob.service_url_for_direct_upload
+      @headers = @blob.service_headers_for_direct_upload
     end
 
     def as_json(*)

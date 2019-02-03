@@ -29,7 +29,7 @@ module ActiveRecord
       NATIVE_DATABASE_TYPES = {
         primary_key: "bigint auto_increment PRIMARY KEY",
         string:      { name: "varchar", limit: 255 },
-        text:        { name: "text", limit: 65535 },
+        text:        { name: "text" },
         integer:     { name: "int", limit: 4 },
         float:       { name: "float", limit: 24 },
         decimal:     { name: "decimal" },
@@ -37,7 +37,8 @@ module ActiveRecord
         timestamp:   { name: "timestamp" },
         time:        { name: "time" },
         date:        { name: "date" },
-        binary:      { name: "blob", limit: 65535 },
+        binary:      { name: "blob" },
+        blob:        { name: "blob" },
         boolean:     { name: "tinyint", limit: 1 },
         json:        { name: "json" },
       }
@@ -709,6 +710,12 @@ module ActiveRecord
         end
 
         def add_timestamps_for_alter(table_name, options = {})
+          options[:null] = false if options[:null].nil?
+
+          if !options.key?(:precision) && supports_datetime_with_precision?
+            options[:precision] = 6
+          end
+
           [add_column_for_alter(table_name, :created_at, :datetime, options), add_column_for_alter(table_name, :updated_at, :datetime, options)]
         end
 

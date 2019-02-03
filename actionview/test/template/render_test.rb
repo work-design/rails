@@ -15,7 +15,7 @@ module RenderTestCases
       def combined_fragment_cache_key(key)
         [ :views, key ]
       end
-    end.new(paths, @assigns)
+    end.with_view_paths(paths, @assigns)
 
     @controller_view = TestController.new.view_context
 
@@ -336,6 +336,16 @@ module RenderTestCases
     assert_equal "Hello: davidHello: mary", @view.render(partial: "test/customer", collection: customers)
   end
 
+  def test_deprecated_constructor
+    assert_deprecated do
+      ActionView::Base.new
+    end
+
+    assert_deprecated do
+      ActionView::Base.new ["/a"]
+    end
+  end
+
   def test_render_partial_without_object_does_not_put_partial_name_to_local_assigns
     assert_equal "false", @view.render(partial: "test/partial_name_in_local_assigns")
   end
@@ -440,13 +450,22 @@ module RenderTestCases
     assert_equal "Hello, World!", @view.render(inline: "Hello, World!", type: :bar)
   end
 
-  CustomHandler = lambda do |template|
+  CustomHandler = lambda do |template, source|
     "@output_buffer = ''.dup\n" \
-      "@output_buffer << 'source: #{template.source.inspect}'\n"
+      "@output_buffer << 'source: #{source.inspect}'\n"
   end
 
   def test_render_inline_with_render_from_to_proc
-    ActionView::Template.register_template_handler :ruby_handler, :source.to_proc
+    ActionView::Template.register_template_handler :ruby_handler, lambda { |_, source| source }
+    assert_equal "3", @view.render(inline: "(1 + 2).to_s", type: :ruby_handler)
+  ensure
+    ActionView::Template.unregister_template_handler :ruby_handler
+  end
+
+  def test_render_inline_with_render_from_to_proc_deprecated
+    assert_deprecated do
+      ActionView::Template.register_template_handler :ruby_handler, :source.to_proc
+    end
     assert_equal "3", @view.render(inline: "(1 + 2).to_s", type: :ruby_handler)
   ensure
     ActionView::Template.unregister_template_handler :ruby_handler

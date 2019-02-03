@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "active_support/deprecation"
-
 module ActiveRecord
   module ConnectionAdapters #:nodoc:
     # Abstract representation of an index definition on a table. Instances of
@@ -259,10 +257,9 @@ module ActiveRecord
       include ColumnMethods
 
       attr_reader :name, :temporary, :if_not_exists, :options, :as, :comment, :indexes, :foreign_keys
-      attr_writer :indexes
-      deprecate :indexes=
 
       def initialize(
+        conn,
         name,
         temporary: false,
         if_not_exists: false,
@@ -271,6 +268,7 @@ module ActiveRecord
         comment: nil,
         **
       )
+        @conn = conn
         @columns_hash = {}
         @indexes = []
         @foreign_keys = []
@@ -409,6 +407,10 @@ module ActiveRecord
       #   t.timestamps null: false
       def timestamps(**options)
         options[:null] = false if options[:null].nil?
+
+        if !options.key?(:precision) && @conn.supports_datetime_with_precision?
+          options[:precision] = 6
+        end
 
         column(:created_at, :datetime, options)
         column(:updated_at, :datetime, options)
@@ -680,9 +682,10 @@ module ActiveRecord
       end
       alias :remove_belongs_to :remove_references
 
-      # Adds a foreign key.
+      # Adds a foreign key to the table using a supplied table name.
       #
       #  t.foreign_key(:authors)
+      #  t.foreign_key(:authors, column: :author_id, primary_key: "id")
       #
       # See {connection.add_foreign_key}[rdoc-ref:SchemaStatements#add_foreign_key]
       def foreign_key(*args)

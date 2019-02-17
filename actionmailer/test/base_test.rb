@@ -913,6 +913,21 @@ class BaseTest < ActiveSupport::TestCase
     ActiveSupport::Notifications.unsubscribe "process.action_mailer"
   end
 
+  test "notification for deliver" do
+    events = []
+    ActiveSupport::Notifications.subscribe("deliver.action_mailer") do |*args|
+      events << ActiveSupport::Notifications::Event.new(*args)
+    end
+
+    BaseMailer.welcome(body: "Hello there").deliver_now
+
+    assert_equal 1, events.length
+    assert_equal "deliver.action_mailer", events[0].name
+    assert_not_nil events[0].payload[:message_id]
+  ensure
+    ActiveSupport::Notifications.unsubscribe "deliver.action_mailer"
+  end
+
   private
 
     # Execute the block setting the given values and restoring old values after

@@ -1,3 +1,11 @@
+*   New autoloading based on [Zeitwerk](https://github.com/fxn/zeitwerk).
+
+    *Xavier Noria*
+
+*   Revise `ActiveSupport::Notifications.unsubscribe` to correctly handle Regex or other multiple-pattern subscribers.
+
+    *Zach Kemp*
+
 *   Add `before_reset` callback to `CurrentAttributes` and define `after_reset` as an alias of `resets` for symmetry.
 
     *Rosa Gutierrez*
@@ -11,6 +19,10 @@
     `assoc` can now be called with either a string or a symbol.
 
     *Stefan Schüßler*
+
+*   Add `Hash#deep_transform_values`, and `Hash#deep_transform_values!`.
+
+    *Guillermo Iguaran*
 
 ## Rails 6.0.0.beta1 (January 18, 2019) ##
 

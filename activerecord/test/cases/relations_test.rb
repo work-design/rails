@@ -14,6 +14,7 @@ require "models/person"
 require "models/computer"
 require "models/reply"
 require "models/company"
+require "models/contract"
 require "models/bird"
 require "models/car"
 require "models/engine"
@@ -290,7 +291,16 @@ class RelationTest < ActiveRecord::TestCase
       Topic.order(Arel.sql("title NULLS FIRST")).reverse_order
     end
     assert_raises(ActiveRecord::IrreversibleOrderError) do
+      Topic.order(Arel.sql("title  NULLS  FIRST")).reverse_order
+    end
+    assert_raises(ActiveRecord::IrreversibleOrderError) do
       Topic.order(Arel.sql("title nulls last")).reverse_order
+    end
+    assert_raises(ActiveRecord::IrreversibleOrderError) do
+      Topic.order(Arel.sql("title NULLS FIRST, author_name")).reverse_order
+    end
+    assert_raises(ActiveRecord::IrreversibleOrderError) do
+      Topic.order(Arel.sql("author_name, title nulls last")).reverse_order
     end
   end
 
@@ -1166,8 +1176,23 @@ class RelationTest < ActiveRecord::TestCase
     assert_equal "green", parrot.color
   end
 
+  def test_first_or_create_with_after_initialize
+    Bird.create!(color: "yellow", name: "canary")
+    parrot = assert_deprecated do
+      Bird.where(color: "green").first_or_create do |bird|
+        bird.name = "parrot"
+        bird.enable_count = true
+      end
+    end
+    assert_equal 0, parrot.total_count
+  end
+
   def test_first_or_create_with_block
-    parrot = Bird.where(color: "green").first_or_create { |bird| bird.name = "parrot" }
+    Bird.create!(color: "yellow", name: "canary")
+    parrot = Bird.where(color: "green").first_or_create do |bird|
+      bird.name = "parrot"
+      assert_deprecated { assert_equal 0, Bird.count }
+    end
     assert_kind_of Bird, parrot
     assert_predicate parrot, :persisted?
     assert_equal "green", parrot.color
@@ -1208,8 +1233,23 @@ class RelationTest < ActiveRecord::TestCase
     assert_raises(ActiveRecord::RecordInvalid) { Bird.where(color: "green").first_or_create! }
   end
 
+  def test_first_or_create_bang_with_after_initialize
+    Bird.create!(color: "yellow", name: "canary")
+    parrot = assert_deprecated do
+      Bird.where(color: "green").first_or_create! do |bird|
+        bird.name = "parrot"
+        bird.enable_count = true
+      end
+    end
+    assert_equal 0, parrot.total_count
+  end
+
   def test_first_or_create_bang_with_valid_block
-    parrot = Bird.where(color: "green").first_or_create! { |bird| bird.name = "parrot" }
+    Bird.create!(color: "yellow", name: "canary")
+    parrot = Bird.where(color: "green").first_or_create! do |bird|
+      bird.name = "parrot"
+      assert_deprecated { assert_equal 0, Bird.count }
+    end
     assert_kind_of Bird, parrot
     assert_predicate parrot, :persisted?
     assert_equal "green", parrot.color
@@ -1258,8 +1298,23 @@ class RelationTest < ActiveRecord::TestCase
     assert_equal "green", parrot.color
   end
 
+  def test_first_or_initialize_with_after_initialize
+    Bird.create!(color: "yellow", name: "canary")
+    parrot = assert_deprecated do
+      Bird.where(color: "green").first_or_initialize do |bird|
+        bird.name = "parrot"
+        bird.enable_count = true
+      end
+    end
+    assert_equal 0, parrot.total_count
+  end
+
   def test_first_or_initialize_with_block
-    parrot = Bird.where(color: "green").first_or_initialize { |bird| bird.name = "parrot" }
+    Bird.create!(color: "yellow", name: "canary")
+    parrot = Bird.where(color: "green").first_or_initialize do |bird|
+      bird.name = "parrot"
+      assert_deprecated { assert_equal 0, Bird.count }
+    end
     assert_kind_of Bird, parrot
     assert_not_predicate parrot, :persisted?
     assert_predicate parrot, :valid?
@@ -1798,6 +1853,19 @@ class RelationTest < ActiveRecord::TestCase
     posts = Post.joins(:author).select("id", "authors.author_address_id").order("posts.id").limit(3)
     assert_equal [1, 2, 4], posts.map(&:id)
     assert_equal [1, 1, 1], posts.map(&:author_address_id)
+  end
+
+  test "joins with select custom attribute" do
+    contract = Company.create!(name: "test").contracts.create!
+    company = Company.joins(:contracts).select(:id, :metadata).find(contract.company_id)
+    assert_equal contract.metadata, company.metadata
+  end
+
+  test "joins with order by custom attribute" do
+    companies = Company.create!([{ name: "test1" }, { name: "test2" }])
+    companies.each { |company| company.contracts.create! }
+    assert_equal companies, Company.joins(:contracts).order(:metadata)
+    assert_equal companies.reverse, Company.joins(:contracts).order(metadata: :desc)
   end
 
   test "delegations do not leak to other classes" do

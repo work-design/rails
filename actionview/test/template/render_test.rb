@@ -20,7 +20,10 @@ module RenderTestCases
 
     controller = TestController.new
 
-    @controller_view = controller.view_context_class.with_empty_template_cache.new(controller.view_renderer, controller.view_assigns, controller)
+    @controller_view = controller.view_context_class.with_empty_template_cache.new(
+      controller.lookup_context,
+      controller.view_assigns,
+      controller)
 
     # Reload and register danish language for testing
     I18n.backend.store_translations "da", {}
@@ -28,6 +31,21 @@ module RenderTestCases
 
     # Ensure original are still the same since we are reindexing view paths
     assert_equal ORIGINAL_LOCALES, I18n.available_locales.map(&:to_s).sort
+  end
+
+  def test_implicit_format_comes_from_parent_template
+    rendered_templates = JSON.parse(@controller_view.render(template: "test/mixing_formats"))
+    assert_equal({ "format" => "HTML",
+                   "children" => ["XML", "HTML"] }, rendered_templates)
+  end
+
+  def test_implicit_format_comes_from_parent_template_cascading
+    rendered_templates = JSON.parse(@controller_view.render(template: "test/mixing_formats_deep"))
+    assert_equal({ "format" => "HTML",
+                   "children" => [
+                     { "format" => "XML", "children" => ["XML"] },
+                     { "format" => "HTML", "children" => ["HTML"] },
+    ] }, rendered_templates)
   end
 
   def test_render_without_options
@@ -68,7 +86,7 @@ module RenderTestCases
 
   def test_render_partial_use_last_prepended_format_for_partials_with_the_same_names
     @view.lookup_context.formats = [:html]
-    assert_equal "\nHTML Template, but JSON partial", @view.render(template: "test/change_priority")
+    assert_equal "\nHTML Template, but HTML partial", @view.render(template: "test/change_priority")
   end
 
   def test_render_template_with_a_missing_partial_of_another_format
@@ -346,6 +364,13 @@ module RenderTestCases
 
     assert_deprecated do
       ActionView::Base.new ["/a"]
+    end
+  end
+
+  def test_without_compiled_method_container_is_deprecated
+    view = ActionView::Base.with_view_paths(ActionController::Base.view_paths)
+    assert_deprecated("ActionView::Base instances must implement `compiled_method_container`") do
+      assert_equal "Hello world!", view.render(file: "test/hello_world")
     end
   end
 
@@ -631,9 +656,8 @@ class CachedViewRenderTest < ActiveSupport::TestCase
 
   # Ensure view path cache is primed
   def setup
+    ActionView::LookupContext::DetailsKey.clear
     view_paths = ActionController::Base.view_paths
-    view_paths.each(&:clear_cache)
-    ActionView::LookupContext.fallbacks.each(&:clear_cache)
     assert_equal ActionView::OptimizedFileSystemResolver, view_paths.first.class
     setup_view(view_paths)
   end
@@ -650,9 +674,7 @@ class LazyViewRenderTest < ActiveSupport::TestCase
   # Test the same thing as above, but make sure the view path
   # is not eager loaded
   def setup
-    view_paths = ActionController::Base.view_paths
-    view_paths.each(&:clear_cache)
-    ActionView::LookupContext.fallbacks.each(&:clear_cache)
+    ActionView::LookupContext::DetailsKey.clear
     path = ActionView::FileSystemResolver.new(FIXTURE_LOAD_PATH)
     view_paths = ActionView::PathSet.new([path])
     assert_equal ActionView::FileSystemResolver.new(FIXTURE_LOAD_PATH), view_paths.first
@@ -710,10 +732,10 @@ class CachedCollectionViewRenderTest < ActiveSupport::TestCase
 
   # Ensure view path cache is primed
   setup do
+    ActionView::LookupContext::DetailsKey.clear
+
     view_paths = ActionController::Base.view_paths
     assert_equal ActionView::OptimizedFileSystemResolver, view_paths.first.class
-    view_paths.each(&:clear_cache)
-    ActionView::LookupContext.fallbacks.each(&:clear_cache)
 
     ActionView::PartialRenderer.collection_cache = ActiveSupport::Cache::MemoryStore.new
 
@@ -753,6 +775,17 @@ class CachedCollectionViewRenderTest < ActiveSupport::TestCase
 
     assert_equal "Cached",
       @view.render(partial: "test/cached_customer", collection: [customer], cached: true)
+  end
+
+  test "collection caching does not work on multi-partials" do
+    a = Object.new
+    b = Object.new
+    def a.to_partial_path; "test/partial_iteration_1"; end
+    def b.to_partial_path; "test/partial_iteration_2"; end
+
+    assert_raises(NotImplementedError) do
+      @controller_view.render(partial: [a, b], cached: true)
+    end
   end
 
   private

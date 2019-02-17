@@ -1,6 +1,9 @@
-*   Chaining named scope is no longer leaking to class level querying methods.
+*   SQLite3: Implement `add_foreign_key` and `remove_foreign_key`.
 
-    Fixes #14003.
+    *Ryuta Kamizono*
+
+*   Deprecate using class level querying methods if the receiver scope
+    regarded as leaked. Use `klass.unscoped` to avoid the leaking scope.
 
     *Ryuta Kamizono*
 
@@ -23,7 +26,7 @@
     ```
     config.active_record.database_selector = { delay: 2.seconds }
     config.active_record.database_resolver = ActiveRecord::Middleware::DatabaseSelector::Resolver
-    config.active_record.database_operations = ActiveRecord::Middleware::DatabaseSelector::Resolver::Session
+    config.active_record.database_resolver_context = ActiveRecord::Middleware::DatabaseSelector::Resolver::Session
     ```
 
     To change the database selection strategy, pass a custom class to the
@@ -32,7 +35,7 @@
     ```
     config.active_record.database_selector = { delay: 10.seconds }
     config.active_record.database_resolver = MyResolver
-    config.active_record.database_operations = MyResolver::MyCookies
+    config.active_record.database_resolver_context = MyResolver::MyCookies
     ```
 
     *Eileen M. Uchitelle*
@@ -502,8 +505,8 @@
 
     Iterating over the database configurations has also changed. Instead of
     calling hash methods on the `configurations` hash directly, a new method `configs_for` has
-    been provided that allows you to select the correct configuration. `env_name`, and
-    `spec_name` arguments are optional. For example these return an array of
+    been provided that allows you to select the correct configuration. `env_name` and
+    `spec_name` arguments are optional. For example, these return an array of
     database config objects for the requested environment and a single database config object
     will be returned for the requested environment and specification name respectively.
 

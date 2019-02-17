@@ -1052,15 +1052,27 @@ module ActiveRecord
 
       def arel_columns(columns)
         columns.flat_map do |field|
-          if (Symbol === field || String === field) && (klass.has_attribute?(field) || klass.attribute_alias?(field)) && !from_clause.value
-            arel_attribute(field)
-          elsif Symbol === field
-            connection.quote_table_name(field.to_s)
-          elsif Proc === field
+          case field
+          when Symbol
+            field = field.to_s
+            arel_column(field) { connection.quote_table_name(field) }
+          when String
+            arel_column(field) { field }
+          when Proc
             field.call
           else
             field
           end
+        end
+      end
+
+      def arel_column(field)
+        field = klass.attribute_alias(field) if klass.attribute_alias?(field)
+
+        if klass.columns_hash.key?(field) && !from_clause.value
+          arel_attribute(field)
+        else
+          yield
         end
       end
 
@@ -1099,7 +1111,7 @@ module ActiveRecord
         # Uses SQL function with multiple arguments.
         (order.include?(",") && order.split(",").find { |section| section.count("(") != section.count(")") }) ||
           # Uses "nulls first" like construction.
-          /nulls (first|last)\Z/i.match?(order)
+          /\bnulls\s+(?:first|last)\b/i.match?(order)
       end
 
       def build_order(arel)
@@ -1145,14 +1157,20 @@ module ActiveRecord
         order_args.map! do |arg|
           case arg
           when Symbol
-            arel_attribute(arg).asc
+            field = arg.to_s
+            arel_column(field) {
+              Arel.sql(connection.quote_table_name(field))
+            }.asc
           when Hash
             arg.map { |field, dir|
               case field
               when Arel::Nodes::SqlLiteral
                 field.send(dir.downcase)
               else
-                arel_attribute(field).send(dir.downcase)
+                field = field.to_s
+                arel_column(field) {
+                  Arel.sql(connection.quote_table_name(field))
+                }.send(dir.downcase)
               end
             }
           else

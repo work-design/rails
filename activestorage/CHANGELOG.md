@@ -1,6 +1,13 @@
 *   Allow record to be optionally passed to blob finders to make sharding
     easier.
 
+*   Direct Upload support custom http method
+    
+    *Mingyuan Qin*
+
+*   [Rename npm package](https://github.com/rails/rails/pull/34905) from
+    [`activestorage`](https://www.npmjs.com/package/activestorage) to
+    [`@rails/activestorage`](https://www.npmjs.com/package/@rails/activestorage).
     *Gannon McGibbon*
 
 *   Switch from `azure-storage` gem to `azure-storage-blob` gem for Azure service.

@@ -15,7 +15,7 @@ module Arel
 
       ###
       # :'(
-      # http://dev.mysql.com/doc/refman/5.0/en/select.html#id3482214
+      # https://dev.mysql.com/doc/refman/5.0/en/select.html#id3482214
       it "defaults limit to 18446744073709551615" do
         stmt = Nodes::SelectStatement.new
         stmt.offset = Nodes::Offset.new(1)
@@ -102,6 +102,52 @@ module Arel
           val = Nodes.build_quoted(nil, @table[:active])
           sql = compile Nodes::IsDistinctFrom.new(@table[:name], val)
           sql.must_be_like %{ NOT "users"."name" <=> NULL }
+        end
+      end
+
+      describe "Nodes::Regexp" do
+        before do
+          @table = Table.new(:users)
+          @attr = @table[:id]
+        end
+
+        it "should know how to visit" do
+          node = @table[:name].matches_regexp("foo.*")
+          node.must_be_kind_of Nodes::Regexp
+          compile(node).must_be_like %{
+            "users"."name" REGEXP 'foo.*'
+          }
+        end
+
+        it "can handle subqueries" do
+          subquery = @table.project(:id).where(@table[:name].matches_regexp("foo.*"))
+          node = @attr.in subquery
+          compile(node).must_be_like %{
+            "users"."id" IN (SELECT id FROM "users" WHERE "users"."name" REGEXP 'foo.*')
+          }
+        end
+      end
+
+      describe "Nodes::NotRegexp" do
+        before do
+          @table = Table.new(:users)
+          @attr = @table[:id]
+        end
+
+        it "should know how to visit" do
+          node = @table[:name].does_not_match_regexp("foo.*")
+          node.must_be_kind_of Nodes::NotRegexp
+          compile(node).must_be_like %{
+            "users"."name" NOT REGEXP 'foo.*'
+          }
+        end
+
+        it "can handle subqueries" do
+          subquery = @table.project(:id).where(@table[:name].does_not_match_regexp("foo.*"))
+          node = @attr.in subquery
+          compile(node).must_be_like %{
+            "users"."id" IN (SELECT id FROM "users" WHERE "users"."name" NOT REGEXP 'foo.*')
+          }
         end
       end
     end

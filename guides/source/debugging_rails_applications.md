@@ -147,7 +147,7 @@ TIP: The default Rails log level is `debug` in all environments.
 
 ### Sending Messages
 
-To write in the current log use the `logger.(debug|info|warn|error|fatal)` method from within a controller, model, or mailer:
+To write in the current log use the `logger.(debug|info|warn|error|fatal|unknown)` method from within a controller, model, or mailer:
 
 ```ruby
 logger.debug "Person attributes hash: #{@person.attributes.inspect}"
@@ -939,7 +939,7 @@ Debugging Memory Leaks
 A Ruby application (on Rails or not), can leak memory — either in the Ruby code
 or at the C code level.
 
-In this section, you will learn how to find and fix such leaks by using tool
+In this section, you will learn how to find and fix such leaks by using tools
 such as Valgrind.
 
 ### Valgrind
@@ -956,21 +956,18 @@ For further information on how to install Valgrind and use with Ruby, refer to
 [Valgrind and Ruby](http://blog.evanweaver.com/articles/2008/02/05/valgrind-and-ruby/)
 by Evan Weaver.
 
+### Find a memory leak
+There is an excellent article about detecting and fixing memory leaks at Derailed, [which you can read here](https://github.com/schneems/derailed_benchmarks#is-my-app-leaking-memory).
+
+
 Plugins for Debugging
 ---------------------
 
 There are some Rails plugins to help you to find errors and debug your
 application. Here is a list of useful plugins for debugging:
 
-* [Footnotes](https://github.com/josevalim/rails-footnotes) Every Rails page has
-footnotes that give request information and link back to your source via
-TextMate.
 * [Query Trace](https://github.com/ruckus/active-record-query-trace/tree/master) Adds query
 origin tracing to your logs.
-* [Query Reviewer](https://github.com/nesquena/query_reviewer) This Rails plugin
-not only runs "EXPLAIN" before each of your select queries in development, but
-provides a small DIV in the rendered output of each page with the summary of
-warnings for each query that it analyzed.
 * [Exception Notifier](https://github.com/smartinez87/exception_notification/tree/master)
 Provides a mailer object and a default set of templates for sending email
 notifications when errors occur in a Rails application.

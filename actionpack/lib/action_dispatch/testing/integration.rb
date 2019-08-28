@@ -3,7 +3,6 @@
 require "stringio"
 require "uri"
 require "active_support/core_ext/kernel/singleton_class"
-require "active_support/core_ext/object/try"
 require "rack/test"
 require "minitest"
 
@@ -50,11 +49,16 @@ module ActionDispatch
 
       # Follow a single redirect response. If the last response was not a
       # redirect, an exception will be raised. Otherwise, the redirect is
-      # performed on the location header. Any arguments are passed to the
-      # underlying call to `get`.
+      # performed on the location header. If the redirection is a 307 redirect,
+      # the same HTTP verb will be used when redirecting, otherwise a GET request
+      # will be performed. Any arguments are passed to the
+      # underlying request.
       def follow_redirect!(**args)
         raise "not a redirect! #{status} #{status_message}" unless redirect?
-        get(response.location, **args)
+
+        method = response.status == 307 ? request.method.downcase : :get
+        public_send(method, response.location, **args)
+
         status
       end
     end
@@ -194,7 +198,7 @@ module ActionDispatch
       #   Adds request headers characteristic of XMLHttpRequest e.g. HTTP_X_REQUESTED_WITH.
       #   The headers will be merged into the Rack env hash.
       # - +as+: Used for encoding the request with different content type.
-      #   Supports `:json` by default and will set the approriate request headers.
+      #   Supports `:json` by default and will set the appropriate request headers.
       #   The headers will be merged into the Rack env hash.
       #
       # This method is rarely used directly. Use +#get+, +#post+, or other standard

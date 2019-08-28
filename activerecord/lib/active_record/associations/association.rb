@@ -56,6 +56,10 @@ module ActiveRecord
         @inversed = false
       end
 
+      def reset_negative_cache # :nodoc:
+        reset if loaded? && target.nil?
+      end
+
       # Reloads the \target and returns +self+ on success.
       # The QueryCache is cleared if +force+ is true.
       def reload(force = false)
@@ -225,7 +229,7 @@ module ActiveRecord
         # Can be overridden (i.e. in ThroughAssociation) to merge in other scopes (i.e. the
         # through association's scope)
         def target_scope
-          AssociationRelation.create(klass, self).merge!(klass.all)
+          AssociationRelation.create(klass, self).merge!(klass.scope_for_association)
         end
 
         def scope_for_create

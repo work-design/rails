@@ -26,18 +26,7 @@ module ActionMailbox
         ActionMailbox.incinerate = app.config.action_mailbox.incinerate.nil? ? true : app.config.action_mailbox.incinerate
         ActionMailbox.incinerate_after = app.config.action_mailbox.incinerate_after || 30.days
         ActionMailbox.queues = app.config.action_mailbox.queues || {}
-      end
-    end
-
-    initializer "action_mailbox.ingress" do
-      config.after_initialize do |app|
-        if ActionMailbox.ingress = app.config.action_mailbox.ingress.presence
-          config.to_prepare do
-            if ingress_controller_class = "ActionMailbox::Ingresses::#{ActionMailbox.ingress.to_s.classify}::InboundEmailsController".safe_constantize
-              ingress_controller_class.prepare
-            end
-          end
-        end
+        ActionMailbox.ingress = app.config.action_mailbox.ingress
       end
     end
   end

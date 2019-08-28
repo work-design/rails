@@ -15,7 +15,7 @@ Gem::Specification.new do |s|
 
   s.author   = "David Heinemeier Hansson"
   s.email    = "david@loudthinking.com"
-  s.homepage = "http://rubyonrails.org"
+  s.homepage = "https://rubyonrails.org"
 
   s.files        = Dir["CHANGELOG.md", "README.rdoc", "MIT-LICENSE", "lib/**/*"]
   s.require_path = "lib"
@@ -33,7 +33,7 @@ Gem::Specification.new do |s|
 
   s.add_dependency "rack",      "~> 2.0"
   s.add_dependency "rack-test", ">= 0.6.3"
-  s.add_dependency "rails-html-sanitizer", "~> 1.0", ">= 1.0.2"
+  s.add_dependency "rails-html-sanitizer", "~> 1.0", ">= 1.2.0"
   s.add_dependency "rails-dom-testing", "~> 2.0"
   s.add_dependency "actionview", version
 

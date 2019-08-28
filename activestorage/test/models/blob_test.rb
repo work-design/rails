@@ -51,6 +51,12 @@ class ActiveStorage::BlobTest < ActiveSupport::TestCase
     assert_match(/^[a-z0-9]{28}$/, create_blob.key)
   end
 
+  test "create after upload accepts a record for overrides" do
+    assert_nothing_raised do
+      create_blob(record: User.new)
+    end
+  end
+
   test "image?" do
     blob = create_file_blob filename: "racecar.jpg"
     assert_predicate blob, :image?
@@ -104,19 +110,17 @@ class ActiveStorage::BlobTest < ActiveSupport::TestCase
     end
   end
 
-  test "open in a custom tempdir" do
-    tempdir = Dir.mktmpdir
-
-    create_file_blob(filename: "racecar.jpg").open(tempdir: tempdir) do |file|
+  test "open in a custom tmpdir" do
+    create_file_blob(filename: "racecar.jpg").open(tmpdir: tmpdir = Dir.mktmpdir) do |file|
       assert file.binmode?
       assert_equal 0, file.pos
       assert_match(/\.jpg\z/, file.path)
-      assert file.path.starts_with?(tempdir)
+      assert file.path.starts_with?(tmpdir)
       assert_equal file_fixture("racecar.jpg").binread, file.read, "Expected downloaded file to match fixture file"
     end
   end
 
-  test "urls expiring in 5 minutes" do
+  test "URLs expiring in 5 minutes" do
     blob = create_blob
 
     freeze_time do
@@ -125,7 +129,7 @@ class ActiveStorage::BlobTest < ActiveSupport::TestCase
     end
   end
 
-  test "urls force content_type to binary and attachment as content disposition for content types served as binary" do
+  test "URLs force content_type to binary and attachment as content disposition for content types served as binary" do
     blob = create_blob(content_type: "text/html")
 
     freeze_time do
@@ -134,7 +138,7 @@ class ActiveStorage::BlobTest < ActiveSupport::TestCase
     end
   end
 
-  test "urls force attachment as content disposition when the content type is not allowed inline" do
+  test "URLs force attachment as content disposition when the content type is not allowed inline" do
     blob = create_blob(content_type: "application/zip")
 
     freeze_time do
@@ -143,7 +147,7 @@ class ActiveStorage::BlobTest < ActiveSupport::TestCase
     end
   end
 
-  test "urls allow for custom filename" do
+  test "URLs allow for custom filename" do
     blob = create_blob(filename: "original.txt")
     new_filename = ActiveStorage::Filename.new("new.txt")
 
@@ -155,7 +159,7 @@ class ActiveStorage::BlobTest < ActiveSupport::TestCase
     end
   end
 
-  test "urls allow for custom options" do
+  test "URLs allow for custom options" do
     blob = create_blob(filename: "original.txt")
 
     arguments = [

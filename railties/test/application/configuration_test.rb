@@ -4,6 +4,7 @@ require "isolation/abstract_unit"
 require "rack/test"
 require "env_helpers"
 require "set"
+require "active_support/core_ext/string/starts_ends_with"
 
 class ::MyMailInterceptor
   def self.delivering_email(email); email; end
@@ -455,7 +456,7 @@ module ApplicationTests
     test "filter_parameters should be able to set via config.filter_parameters" do
       add_to_config <<-RUBY
         config.filter_parameters += [ :foo, 'bar', lambda { |key, value|
-          value = value.reverse if key =~ /baz/
+          value = value.reverse if /baz/.match?(key)
         }]
       RUBY
 
@@ -596,6 +597,30 @@ module ApplicationTests
       assert_equal "some_value", verifier.verify(message)
     end
 
+    test "application will generate secret_key_base in tmp file if blank in development" do
+      app_file "config/initializers/secret_token.rb", <<-RUBY
+        Rails.application.credentials.secret_key_base = nil
+      RUBY
+
+      # For test that works even if tmp dir does not exist.
+      Dir.chdir(app_path) { FileUtils.remove_dir("tmp") }
+
+      app "development"
+
+      assert_not_nil app.secrets.secret_key_base
+      assert File.exist?(app_path("tmp/development_secret.txt"))
+    end
+
+    test "application will not generate secret_key_base in tmp file if blank in production" do
+      app_file "config/initializers/secret_token.rb", <<-RUBY
+        Rails.application.credentials.secret_key_base = nil
+      RUBY
+
+      assert_raises ArgumentError do
+        app "production"
+      end
+    end
+
     test "raises when secret_key_base is blank" do
       app_file "config/initializers/secret_token.rb", <<-RUBY
         Rails.application.credentials.secret_key_base = nil
@@ -619,7 +644,6 @@ module ApplicationTests
 
     test "application verifier can build different verifiers" do
       make_basic_app do |application|
-        application.credentials.secret_key_base = "b3c631c314c0bbca50c1b2843150fe33"
         application.config.session_store :disabled
       end
 
@@ -766,7 +790,7 @@ module ApplicationTests
       end
 
       get "/"
-      assert last_response.body =~ /csrf\-param/
+      assert_match(/csrf\-param/, last_response.body)
     end
 
     test "default form builder specified as a string" do
@@ -1167,6 +1191,8 @@ module ApplicationTests
       assert_instance_of Zeitwerk::Loader, Rails.autoloaders.once
       assert_equal "rails.once", Rails.autoloaders.once.tag
       assert_equal [Rails.autoloaders.main, Rails.autoloaders.once], Rails.autoloaders.to_a
+      assert_equal ActiveSupport::Dependencies::ZeitwerkIntegration::Inflector, Rails.autoloaders.main.inflector
+      assert_equal ActiveSupport::Dependencies::ZeitwerkIntegration::Inflector, Rails.autoloaders.once.inflector
 
       config.autoloader = :classic
       assert_not Rails.autoloaders.zeitwerk_enabled?
@@ -1181,6 +1207,8 @@ module ApplicationTests
       assert_instance_of Zeitwerk::Loader, Rails.autoloaders.once
       assert_equal "rails.once", Rails.autoloaders.once.tag
       assert_equal [Rails.autoloaders.main, Rails.autoloaders.once], Rails.autoloaders.to_a
+      assert_equal ActiveSupport::Dependencies::ZeitwerkIntegration::Inflector, Rails.autoloaders.main.inflector
+      assert_equal ActiveSupport::Dependencies::ZeitwerkIntegration::Inflector, Rails.autoloaders.once.inflector
 
       assert_raises(ArgumentError) { config.autoloader = :unknown }
     end
@@ -1579,6 +1607,13 @@ module ApplicationTests
       assert_not_nil Rails::SourceAnnotationExtractor::Annotation.extensions[/\.(coffee)$/]
     end
 
+    test "config.default_log_file returns a File instance" do
+      app "development"
+
+      assert_instance_of File, app.config.default_log_file
+      assert_equal Rails.application.config.paths["log"].first, app.config.default_log_file.path
+    end
+
     test "rake_tasks block works at instance level" do
       app_file "config/environments/development.rb", <<-RUBY
         Rails.application.configure do
@@ -1675,6 +1710,105 @@ module ApplicationTests
         assert_not_operator path, :ends_with?, "app/assets"
         assert_not_operator path, :ends_with?, "app/javascript"
       end
+    end
+
+    test "autoload paths will exclude the configured javascript_path" do
+      add_to_config "config.javascript_path = 'webpack'"
+      app_dir("app/webpack")
+
+      app "development"
+
+      ActiveSupport::Dependencies.autoload_paths.each do |path|
+        assert_not_operator path, :ends_with?, "app/assets"
+        assert_not_operator path, :ends_with?, "app/webpack"
+      end
+    end
+
+    test "autoload paths are added to $LOAD_PATH by default" do
+      app "development"
+
+      # Action Mailer modifies AS::Dependencies.autoload_paths in-place.
+      autoload_paths = ActiveSupport::Dependencies.autoload_paths
+      autoload_paths_from_app_and_engines = autoload_paths.reject do |path|
+        path.ends_with?("mailers/previews")
+      end
+      assert_equal true, Rails.configuration.add_autoload_paths_to_load_path
+      assert_empty autoload_paths_from_app_and_engines - $LOAD_PATH
+
+      # Precondition, ensure we are testing something next.
+      assert_not_empty Rails.configuration.paths.load_paths
+      assert_empty Rails.configuration.paths.load_paths - $LOAD_PATH
+    end
+
+    test "autoload paths are not added to $LOAD_PATH if opted-out" do
+      add_to_config "config.add_autoload_paths_to_load_path = false"
+      app "development"
+
+      assert_empty ActiveSupport::Dependencies.autoload_paths & $LOAD_PATH
+
+      # Precondition, ensure we are testing something next.
+      assert_not_empty Rails.configuration.paths.load_paths
+      assert_empty Rails.configuration.paths.load_paths - $LOAD_PATH
+    end
+
+    test "autoloading during initialization gets deprecation message and clearing if config.cache_classes is false" do
+      app_file "lib/c.rb", <<~EOS
+        class C
+          extend ActiveSupport::DescendantsTracker
+        end
+
+        class X < C
+        end
+      EOS
+
+      app_file "app/models/d.rb", <<~EOS
+        require "c"
+
+        class D < C
+        end
+      EOS
+
+      app_file "config/initializers/autoload.rb", "D.class"
+
+      app "development"
+
+      # TODO: Test deprecation message, assert_depcrecated { app "development" }
+      # does not collect it.
+
+      assert_equal [X], C.descendants
+      assert_empty ActiveSupport::Dependencies.autoloaded_constants
+    end
+
+    test "autoloading during initialization triggers nothing if config.cache_classes is true" do
+      app_file "lib/c.rb", <<~EOS
+        class C
+          extend ActiveSupport::DescendantsTracker
+        end
+
+        class X < C
+        end
+      EOS
+
+      app_file "app/models/d.rb", <<~EOS
+        require "c"
+
+        class D < C
+        end
+      EOS
+
+      app_file "config/initializers/autoload.rb", "D.class"
+
+      app "production"
+
+      # TODO: Test no deprecation message is issued.
+
+      assert_equal [X, D], C.descendants
+    end
+
+    test "load_database_yaml returns blank hash if configuration file is blank" do
+      app_file "config/database.yml", ""
+      app "development"
+      assert_equal({}, Rails.application.config.load_database_yaml)
     end
 
     test "raises with proper error message if no database configuration found" do
@@ -2319,6 +2453,33 @@ module ApplicationTests
       assert_nil ActiveStorage.queues[:purge]
     end
 
+    test "ActionDispatch::Response.return_only_media_type_on_content_type is false by default" do
+      app "development"
+
+      assert_equal false, ActionDispatch::Response.return_only_media_type_on_content_type
+    end
+
+    test "ActionDispatch::Response.return_only_media_type_on_content_type is true in the 5.x defaults" do
+      remove_from_config '.*config\.load_defaults.*\n'
+      add_to_config 'config.load_defaults "5.2"'
+
+      app "development"
+
+      assert_equal true, ActionDispatch::Response.return_only_media_type_on_content_type
+    end
+
+    test "ActionDispatch::Response.return_only_media_type_on_content_type can be configured in the new framework defaults" do
+      remove_from_config '.*config\.load_defaults.*\n'
+
+      app_file "config/initializers/new_framework_defaults_6_0.rb", <<-RUBY
+        Rails.application.config.action_dispatch.return_only_media_type_on_content_type = true
+      RUBY
+
+      app "development"
+
+      assert_equal true, ActionDispatch::Response.return_only_media_type_on_content_type
+    end
+
     test "ActionMailbox.logger is Rails.logger by default" do
       app "development"
 
@@ -2444,9 +2605,40 @@ module ApplicationTests
       MESSAGE
     end
 
+    test "ActiveStorage.draw_routes can be configured via config.active_storage.draw_routes" do
+      app_file "config/environments/development.rb", <<-RUBY
+        Rails.application.configure do
+          config.active_storage.draw_routes = false
+        end
+      RUBY
+
+      output = rails("routes")
+      assert_not_includes(output, "rails_service_blob")
+      assert_not_includes(output, "rails_blob_representation")
+      assert_not_includes(output, "rails_disk_service")
+      assert_not_includes(output, "update_rails_disk_service")
+      assert_not_includes(output, "rails_direct_uploads")
+    end
+
     test "hosts include .localhost in development" do
       app "development"
       assert_includes Rails.application.config.hosts, ".localhost"
+    end
+
+    test "disable_sandbox is false by default" do
+      app "development"
+
+      assert_equal false, Rails.configuration.disable_sandbox
+    end
+
+    test "disable_sandbox can be overridden" do
+      add_to_config <<-RUBY
+        config.disable_sandbox = true
+      RUBY
+
+      app "development"
+
+      assert Rails.configuration.disable_sandbox
     end
 
     private

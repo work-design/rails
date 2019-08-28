@@ -4,7 +4,6 @@ require "active_support/core_ext/array/conversions"
 require "active_support/core_ext/module/delegation"
 require "active_support/core_ext/object/acts_like"
 require "active_support/core_ext/string/filters"
-require "active_support/deprecation"
 
 module ActiveSupport
   # Provides accurate date and time measurements using Date#advance and
@@ -182,6 +181,10 @@ module ActiveSupport
       #   ActiveSupport::Duration.build(2716146).parts  # => {:months=>1, :days=>1}
       #
       def build(value)
+        unless value.is_a?(::Numeric)
+          raise TypeError, "can't build an #{self.name} from a #{value.class.name}"
+        end
+
         parts = {}
         remainder = value.to_f
 
@@ -199,7 +202,6 @@ module ActiveSupport
       end
 
       private
-
         def calculate_total_seconds(parts)
           parts.inject(0) do |total, (part, value)|
             total + value * PARTS_IN_SECONDS[part]
@@ -400,7 +402,6 @@ module ActiveSupport
     end
 
     private
-
       def sum(sign, time = ::Time.current)
         parts.inject(time) do |t, (type, number)|
           if t.acts_like?(:time) || t.acts_like?(:date)

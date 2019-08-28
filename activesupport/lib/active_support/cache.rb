@@ -7,6 +7,7 @@ require "active_support/core_ext/module/attribute_accessors"
 require "active_support/core_ext/numeric/bytes"
 require "active_support/core_ext/numeric/time"
 require "active_support/core_ext/object/to_param"
+require "active_support/core_ext/object/try"
 require "active_support/core_ext/string/inflections"
 
 module ActiveSupport
@@ -476,6 +477,18 @@ module ActiveSupport
         end
       end
 
+      # Deletes multiple entries in the cache.
+      #
+      # Options are passed to the underlying cache implementation.
+      def delete_multi(names, options = nil)
+        options = merged_options(options)
+        names.map! { |key| normalize_key(key, options) }
+
+        instrument :delete_multi, names do
+          delete_multi_entries(names, options)
+        end
+      end
+
       # Returns +true+ if the cache contains an entry for the given key.
       #
       # Options are passed to the underlying cache implementation.
@@ -492,7 +505,7 @@ module ActiveSupport
       #
       # Options are passed to the underlying cache implementation.
       #
-      # All implementations may not support this method.
+      # Some implementations may not support this method.
       def delete_matched(matcher, options = nil)
         raise NotImplementedError.new("#{self.class.name} does not support delete_matched")
       end
@@ -501,7 +514,7 @@ module ActiveSupport
       #
       # Options are passed to the underlying cache implementation.
       #
-      # All implementations may not support this method.
+      # Some implementations may not support this method.
       def increment(name, amount = 1, options = nil)
         raise NotImplementedError.new("#{self.class.name} does not support increment")
       end
@@ -510,7 +523,7 @@ module ActiveSupport
       #
       # Options are passed to the underlying cache implementation.
       #
-      # All implementations may not support this method.
+      # Some implementations may not support this method.
       def decrement(name, amount = 1, options = nil)
         raise NotImplementedError.new("#{self.class.name} does not support decrement")
       end
@@ -519,7 +532,7 @@ module ActiveSupport
       #
       # Options are passed to the underlying cache implementation.
       #
-      # All implementations may not support this method.
+      # Some implementations may not support this method.
       def cleanup(options = nil)
         raise NotImplementedError.new("#{self.class.name} does not support cleanup")
       end
@@ -529,7 +542,7 @@ module ActiveSupport
       #
       # The options hash is passed to the underlying cache implementation.
       #
-      # All implementations may not support this method.
+      # Some implementations may not support this method.
       def clear(options = nil)
         raise NotImplementedError.new("#{self.class.name} does not support clear")
       end
@@ -600,6 +613,18 @@ module ActiveSupport
         # implement this method.
         def delete_entry(key, options)
           raise NotImplementedError.new
+        end
+
+        # Deletes multiples entries in the cache implementation. Subclasses MAY
+        # implement this method.
+        def delete_multi_entries(entries, options)
+          entries.inject(0) do |sum, key|
+            if delete_entry(key, options)
+              sum + 1
+            else
+              sum
+            end
+          end
         end
 
         # Merges the default options with ones specific to a method call.
@@ -678,16 +703,13 @@ module ActiveSupport
         end
 
         def instrument(operation, key, options = nil)
-          log { "Cache #{operation}: #{normalize_key(key, options)}#{options.blank? ? "" : " (#{options.inspect})"}" }
+          if logger && logger.debug? && !silence?
+            logger.debug "Cache #{operation}: #{normalize_key(key, options)}#{options.blank? ? "" : " (#{options.inspect})"}"
+          end
 
           payload = { key: key }
           payload.merge!(options) if options.is_a?(Hash)
           ActiveSupport::Notifications.instrument("cache_#{operation}.active_support", payload) { yield(payload) }
-        end
-
-        def log
-          return unless logger && logger.debug? && !silence?
-          logger.debug(yield)
         end
 
         def handle_expired_entry(entry, key, options)

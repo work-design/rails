@@ -1,11 +1,14 @@
-*   Allow skipping incineration of processed emails.
+*   Allow easier creation of multi-part emails from the `create_inbound_email_from_mail` and `receive_inbound_email_from_mail` test helpers.
 
-    This can be done by setting `config.action_mailbox.incinerate` to `false`.
+    *Michael Herold*
 
-    *Pratik Naik*
+*   Fix Bcc header not being included with emails from `create_inbound_email_from` test helpers.
 
-## Rails 6.0.0.beta1 (January 18, 2019) ##
+    *jduff*
 
-*   Added to Rails.
+*   Add `ApplicationMailbox.mailbox_for` to expose mailbox routing.
 
-    *DHH*
+    *James Dabbs*
+
+
+Please check [6-0-stable](https://github.com/rails/rails/blob/6-0-stable/actionmailbox/CHANGELOG.md) for previous changes.

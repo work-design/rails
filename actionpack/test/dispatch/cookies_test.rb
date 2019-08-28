@@ -123,6 +123,11 @@ class CookiesTest < ActionController::TestCase
       head :ok
     end
 
+    def set_cookie_if_not_present
+      cookies["user_name"] = "alice" unless cookies["user_name"].present?
+      head :ok
+    end
+
     def logout
       cookies.delete("user_name")
       head :ok
@@ -312,7 +317,7 @@ class CookiesTest < ActionController::TestCase
     end
 
     def rails_5_2_stable_encrypted_cookie_with_authenticated_encryption_flag_off
-      cookies[:favorite] = "Wmg4amgvcVVvWGcwK3c4WjJEbTdRQUgrWXhBdDliUTR0cVNidXpmVTMrc2RjcitwUzVsWWEwZGtuVGtFUjJwNi0tcVhVMTFMOTQ1d0hIVE1FK0pJc05SQT09--8b2a55c375049a50f7a959b9d42b31ef0b2bb594"
+      cookies[:favorite] = "rTG4zs5UufEFAr+ppKwh+MDMymKyAUMOSaWyYa3uUVmD8sMQqyiyQBxgYeAncDHVZIlo4y+kDVSzp66u1/7BNYpnmFe8ES/YT2m8ckNA23jBDmnRZ9CTNfMIRXjFtfxO9YxEOzzhn0ZiA0/zFtr5wkluXtxplOz959Q7MgLOyvTze2h9p8A=--QHOS3rAEGq/HCxXs--xQNra8dk24Idc2qBtpMLpg=="
 
       head :ok
     end
@@ -336,7 +341,7 @@ class CookiesTest < ActionController::TestCase
   SECRET_KEY_BASE = "b3c631c314c0bbca50c1b2843150fe33"
   SIGNED_COOKIE_SALT = "signed cookie"
   ENCRYPTED_COOKIE_SALT = "encrypted cookie"
-  ENCRYPTED_SIGNED_COOKIE_SALT = "sigend encrypted cookie"
+  ENCRYPTED_SIGNED_COOKIE_SALT = "signed encrypted cookie"
   AUTHENTICATED_ENCRYPTED_COOKIE_SALT = "authenticated encrypted cookie"
 
   def setup
@@ -888,6 +893,19 @@ class CookiesTest < ActionController::TestCase
     assert_equal 45, encryptor.decrypt_and_verify(@response.cookies["foo"])
   end
 
+  def test_cookie_with_hash_value_not_modified_by_rotation
+    @request.env["action_dispatch.signed_cookie_digest"] = "SHA256"
+    @request.env["action_dispatch.cookies_rotations"].rotate :signed, digest: "SHA1"
+
+    key_generator = @request.env["action_dispatch.key_generator"]
+    old_secret = key_generator.generate_key(@request.env["action_dispatch.signed_cookie_salt"])
+    old_value = ActiveSupport::MessageVerifier.new(old_secret).generate(bar: "baz")
+
+    @request.headers["Cookie"] = "foo=#{old_value}"
+    get :get_signed_cookie
+    assert_equal({ bar: "baz" }, @controller.send(:cookies).signed[:foo])
+  end
+
   def test_cookie_with_all_domain_option
     get :set_cookie_with_domain
     assert_response :success
@@ -1126,6 +1144,14 @@ class CookiesTest < ActionController::TestCase
     cookies.encrypted["foo"] = "bar"
     get :noop
     assert_equal "bar", @controller.encrypted_cookie
+  end
+
+  def test_cookie_override
+    get :set_cookie_if_not_present
+    assert_equal "alice", cookies["user_name"]
+    cookies["user_name"] = "bob"
+    get :set_cookie_if_not_present
+    assert_equal "bob", cookies["user_name"]
   end
 
   def test_signed_cookie_with_expires_set_relatively
